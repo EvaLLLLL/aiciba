@@ -136,7 +136,7 @@ async function lookupAndDisplay(word: string): Promise<void> {
 async function main() {
   console.log('')
   const args = process.argv.slice(2)
-  const firstArg = args[0]
+  const firstArg = args.length > 0 ? args.join(' ') : undefined
 
   if (firstArg === '--version') {
     console.log(`aiciba v${version}`)
