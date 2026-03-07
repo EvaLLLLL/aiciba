@@ -1,6 +1,6 @@
 {
   "name": "aiciba",
-  "version": "1.0.3",
+  "version": "1.0.4",
   "description": "A CLI English-Chinese dictionary powered by AI",
   "bin": {
     "ciba": "dist/main.js"
