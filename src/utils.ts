@@ -2,7 +2,7 @@ import chalk from 'chalk'
 import type { Word } from './types'
 
 export function sanitize(input: string): string {
-  return input.trim().replace(/[^a-zA-Z\s'-]/g, '')
+  return input.trim().replace(/[^a-zA-Z\u4e00-\u9fff\s'-]/g, '')
 }
 
 export const DIVIDER = chalk.dim('─'.repeat(40))

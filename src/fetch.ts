@@ -60,12 +60,20 @@ function handleApiError(error: unknown): never {
   throw new DictionaryError('Unexpected error. Please try again.')
 }
 
+function isChinese(input: string): boolean {
+  return /[\u4e00-\u9fff]/.test(input)
+}
+
 export async function getResponseFromAi(word: string) {
   const cached = getFromCache(word)
   if (cached) return { output: cached, fromCache: true }
 
   const config = loadConfig()!
   const model = createModel(config)
+
+  const prompt = isChinese(word)
+    ? `The user provided the Chinese word or phrase "${word}". Find its primary English equivalent, then return a full dictionary entry for that English word. The "word" field must be the English word, not the Chinese input.`
+    : `Look up the English word "${word}".`
 
   try {
     const { output } = await generateText({
@@ -74,14 +82,12 @@ export async function getResponseFromAi(word: string) {
       system:
         'You are a professional English-Chinese dictionary. ' +
         'Always provide accurate phonetic transcriptions in IPA format. ' +
-        'If the input is not a valid English word, set exists to false, return an empty entries array, ' +
+        'If the input cannot be mapped to a valid English word, set exists to false, return an empty entries array, ' +
         'and suggest up to 3 similar valid English words in the suggestions field. ' +
         'Only provide one example sentence per part of speech.',
-      prompt: `Look up the English word "${word}".`
+      prompt
     })
-
     if (output.exists) saveToCache(word, output)
-
     return { output, fromCache: false }
   } catch (error) {
     handleApiError(error)
