@@ -10,12 +10,13 @@
     "build": "tsup",
     "start": "node dist/main.js",
     "lint": "tsc --noEmit",
-    "postinstall": "node dist/postinstall.js",
+    "postinstall": "node scripts/run-postinstall.mjs",
     "prepublishOnly": "pnpm lint && pnpm build"
   },
   "type": "module",
   "files": [
     "dist",
+    "scripts/run-postinstall.mjs",
     "README.md"
   ],
   "keywords": [
