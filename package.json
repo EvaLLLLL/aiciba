@@ -10,8 +10,9 @@
     "build": "tsup",
     "start": "node dist/main.js",
     "lint": "tsc --noEmit",
+    "test": "tsx --test src/*.test.ts",
     "postinstall": "node scripts/run-postinstall.mjs",
-    "prepublishOnly": "pnpm lint && pnpm build"
+    "prepublishOnly": "pnpm lint && pnpm test && pnpm build"
   },
   "type": "module",
   "files": [

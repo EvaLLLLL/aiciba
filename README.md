@@ -20,6 +20,8 @@ ciba --version    # show version
 
 On first run, you'll be prompted to choose a provider (Anthropic, OpenAI, or Google Gemini) and enter your API key.
 
+Config and lookup history live in `~/.aiciba`; set `AICIBA_HOME` to keep them somewhere else. History caches the last 500 words, so repeat lookups are instant and free.
+
 ## Supported Providers
 
 | Provider  | Models                                                        |

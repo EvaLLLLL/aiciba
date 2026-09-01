@@ -115,7 +115,7 @@ async function lookupAndDisplay(word: string): Promise<void> {
     note(
       formatOutput(corrected),
       chalk.bold.green(
-        fromCache
+        fc
           ? `Definition: ${corrected.word} ${chalk.dim('(from cache)')}`
           : `Definition: ${corrected.word}`
       )
