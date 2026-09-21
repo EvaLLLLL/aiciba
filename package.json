@@ -1,6 +1,6 @@
 {
   "name": "aiciba",
-  "version": "1.0.8",
+  "version": "1.0.9",
   "description": "A CLI dictionary for any two languages, powered by AI",
   "bin": {
     "ciba": "dist/main.js"
