@@ -1,11 +1,5 @@
 import chalk from 'chalk'
-import type { Word } from './types'
-
-export function sanitize(input: string): string {
-  return input.trim().replace(/[^a-zA-Z\u4e00-\u9fff\s'-]/g, '')
-}
-
-export const DIVIDER = chalk.dim('─'.repeat(40))
+import type { Word } from '../core/types'
 
 export function formatOutput(data: Word): string {
   const lines: string[] = []

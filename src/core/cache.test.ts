@@ -138,3 +138,32 @@ test('clearCache empties history', () => {
   assert.deepEqual(getHistory(), [])
   assert.equal(getFromCache('delta'), null)
 })
+
+test('each language pair keeps its own history file', () => {
+  const configure = (entry: string, definitions: string) =>
+    writeFileSync(
+      join(DATA_DIR, 'config.json'),
+      JSON.stringify({
+        provider: 'openai',
+        apiKey: 'sk-test',
+        model: 'gpt-5.4-mini',
+        entryLanguage: { code: entry, name: entry },
+        definitionLanguage: { code: definitions, name: definitions }
+      }),
+      'utf-8'
+    )
+
+  configure('ja', 'en')
+  saveToCache('猫', word('猫'))
+
+  assert.ok(existsSync(join(DATA_DIR, 'history-ja-en.json')))
+  // The original filename belongs to the pair that was there first.
+  assert.equal(existsSync(CACHE_FILE), false)
+
+  configure('en', 'zh')
+  saveToCache('cat', word('cat'))
+
+  assert.ok(existsSync(CACHE_FILE))
+  // Switching pairs must not surface the other dictionary's entries.
+  assert.equal(getFromCache('猫'), null)
+})

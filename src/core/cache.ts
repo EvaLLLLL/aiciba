@@ -2,15 +2,39 @@ import {
   existsSync,
   mkdirSync,
   readFileSync,
+  readdirSync,
   renameSync,
+  rmSync,
   writeFileSync
 } from 'fs'
 import { join } from 'path'
 import type { Word } from './types'
 import { DATA_DIR } from './paths'
+import { loadConfig } from './config'
+import { resolveAccent } from './dictionary'
 
-const CACHE_FILE = join(DATA_DIR, 'history.json')
-const CORRUPT_FILE = join(DATA_DIR, 'history.corrupt.json')
+/**
+ * One store per language pair: the same spelling means different things in
+ * different dictionaries. English→Chinese keeps the original filename, so the
+ * history written before any of this existed is still the history you have.
+ */
+function cacheFile(): string {
+  const config = loadConfig()
+  const entry = config?.entryLanguage.code ?? 'en'
+  const definitions = config?.definitionLanguage.code ?? 'zh'
+
+  const pair =
+    entry === 'en' && definitions === 'zh'
+      ? 'history'
+      : `history-${entry}-${definitions}`
+
+  // The IPA is chosen when the entry is fetched, so a stored one belongs to the
+  // accent that asked for it. American keeps the plain name it has always had.
+  return join(
+    DATA_DIR,
+    resolveAccent() === 'uk' ? `${pair}-uk.json` : `${pair}.json`
+  )
+}
 
 /** Cap the on-disk history so every lookup doesn't pay for an ever-growing file. */
 export const MAX_ENTRIES = 500
@@ -21,8 +45,16 @@ interface CacheStore {
   aliases: Record<string, string> // lookup input (e.g. 中文) -> canonical key
 }
 
+/**
+ * Null-prototyped: on a plain object literal `entries['constructor']` answers
+ * with a function nobody stored, so an ordinary word would never cache.
+ */
+function bare<T>(): Record<string, T> {
+  return Object.create(null) as Record<string, T>
+}
+
 function emptyStore(): CacheStore {
-  return { order: [], entries: {}, aliases: {} }
+  return { order: [], entries: bare<Word>(), aliases: bare<string>() }
 }
 
 /** Keys are the lowercased English headword, so 中文 input and its result share one entry. */
@@ -36,8 +68,8 @@ function toKey(word: string): string {
  * migrates files written before entries were keyed canonically.
  */
 function normalizeStore(store: CacheStore): CacheStore {
-  const entries: Record<string, Word> = {}
-  const aliases: Record<string, string> = { ...store.aliases }
+  const entries = bare<Word>()
+  const aliases = Object.assign(bare<string>(), store.aliases)
   const rekeyed = new Map<string, string>()
 
   for (const [key, word] of Object.entries(store.entries)) {
@@ -65,15 +97,16 @@ function normalizeStore(store: CacheStore): CacheStore {
 }
 
 function loadStore(): CacheStore {
-  if (!existsSync(CACHE_FILE)) return emptyStore()
+  const file = cacheFile()
+  if (!existsSync(file)) return emptyStore()
 
   let raw: Partial<CacheStore>
   try {
-    raw = JSON.parse(readFileSync(CACHE_FILE, 'utf-8')) as Partial<CacheStore>
+    raw = JSON.parse(readFileSync(file, 'utf-8')) as Partial<CacheStore>
   } catch {
     // Set the unreadable file aside rather than silently dropping every entry.
     try {
-      renameSync(CACHE_FILE, CORRUPT_FILE)
+      renameSync(file, file.replace(/\.json$/, '.corrupt.json'))
     } catch {
       /* nothing recoverable */
     }
@@ -90,9 +123,10 @@ function loadStore(): CacheStore {
 function saveStore(store: CacheStore): void {
   if (!existsSync(DATA_DIR)) mkdirSync(DATA_DIR, { recursive: true })
   // Write-then-rename: a crash or a concurrent `ciba` can't truncate the real file.
-  const tmp = `${CACHE_FILE}.${process.pid}.tmp`
+  const file = cacheFile()
+  const tmp = `${file}.${process.pid}.tmp`
   writeFileSync(tmp, JSON.stringify(store), 'utf-8')
-  renameSync(tmp, CACHE_FILE)
+  renameSync(tmp, file)
 }
 
 /** Move `key` to the front; false means it was already there and no write is needed. */
@@ -124,6 +158,17 @@ export function getFromCache(word: string): Word | null {
   return hit
 }
 
+/**
+ * Like `getFromCache` minus the LRU bookkeeping. The Alfred filter runs on
+ * every keystroke, so it must not rewrite history.json — or reorder it —
+ * just because a word happened to scroll past.
+ */
+export function peekCache(word: string): Word | null {
+  const store = loadStore()
+  const input = toKey(word)
+  return store.entries[store.aliases[input] ?? input] ?? null
+}
+
 export function saveToCache(word: string, data: Word): void {
   const store = loadStore()
   const input = toKey(word)
@@ -143,6 +188,13 @@ export function getHistory(): Word[] {
   return order.flatMap((key) => (entries[key] ? [entries[key]] : []))
 }
 
+/** Every pair's store, because the prompt asking for this says "all history". */
 export function clearCache(): void {
-  saveStore(emptyStore())
+  if (!existsSync(DATA_DIR)) return
+
+  for (const name of readdirSync(DATA_DIR)) {
+    if (/^history.*\.json$/.test(name)) {
+      rmSync(join(DATA_DIR, name), { force: true })
+    }
+  }
 }

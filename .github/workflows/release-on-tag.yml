@@ -10,6 +10,7 @@ permissions:
 
 jobs:
   publish:
+    name: Publish to npm
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -40,3 +41,64 @@ jobs:
       - run: pnpm publish --no-git-checks --access public
         env:
           NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+
+  workflow:
+    name: Release the Alfred workflow
+    # macOS only: the package is assembled with plutil, and the shell wrappers
+    # need their executable bit to survive into the zip.
+    runs-on: macos-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+
+      # The tag is the version stamped into info.plist, which is what Alfred
+      # shows and compares when someone reinstalls.
+      - name: Pin package version to tag
+        run: |
+          TAG="${GITHUB_REF_NAME}"
+          if [[ ! "$TAG" =~ ^v[0-9] ]]; then
+            echo "::error::Tag must be v-prefixed semver (e.g. v1.2.3), got: $TAG"
+            exit 1
+          fi
+          jq --arg v "${TAG#v}" '.version = $v' package.json > package.tmp && mv package.tmp package.json
+
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 10.29.3
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: 'pnpm'
+
+      - run: pnpm install --frozen-lockfile
+
+      # npm gets this for free through prepublishOnly; without it here a tag on
+      # a broken commit would ship an Alfred workflow that npm refused.
+      - run: pnpm lint
+
+      - run: pnpm test
+
+      - run: pnpm build:workflow
+
+      - name: Check the package Alfred will import
+        run: |
+          plutil -lint dist-workflow/workflow/info.plist
+          # A wrapper that arrives without +x makes every keystroke fail.
+          unzip -Z1 dist-workflow/AICIBA.alfredworkflow | grep -q '^info.plist$'
+          for script in filter action pronounce; do
+            unzip -Z "dist-workflow/AICIBA.alfredworkflow" "scripts/$script.sh" |
+              grep -q '^-rwxr-xr-x' || { echo "::error::scripts/$script.sh is not executable"; exit 1; }
+          done
+
+      - name: Attach it to the release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh release create "$GITHUB_REF_NAME" \
+            --title "$GITHUB_REF_NAME" \
+            --generate-notes \
+            dist-workflow/AICIBA.alfredworkflow \
+            || gh release upload "$GITHUB_REF_NAME" \
+              dist-workflow/AICIBA.alfredworkflow --clobber

@@ -1,16 +1,18 @@
 {
   "name": "aiciba",
   "version": "1.0.8",
-  "description": "A CLI English-Chinese dictionary powered by AI",
+  "description": "A CLI dictionary for any two languages, powered by AI",
   "bin": {
     "ciba": "dist/main.js"
   },
   "scripts": {
-    "dev": "tsx src/main.ts",
+    "dev": "tsx src/cli/main.ts",
     "build": "tsup",
+    "build:workflow": "tsup && node scripts/build-workflow.mjs",
+    "icon:workflow": "rsvg-convert -w 512 -h 512 -o workflow/icon.png workflow/icon.svg",
     "start": "node dist/main.js",
     "lint": "tsc --noEmit",
-    "test": "tsx --test src/*.test.ts",
+    "test": "tsx --test src/*/*.test.ts",
     "postinstall": "node scripts/run-postinstall.mjs",
     "prepublishOnly": "pnpm lint && pnpm test && pnpm build"
   },
@@ -29,6 +31,11 @@
   ],
   "author": "Yuhao Liu",
   "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/EvaLLLLL/aiciba.git"
+  },
+  "homepage": "https://github.com/EvaLLLLL/aiciba",
   "packageManager": "pnpm@10.29.3",
   "engines": {
     "node": ">=18"

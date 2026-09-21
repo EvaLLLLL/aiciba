@@ -12,10 +12,11 @@ import {
 } from '@clack/prompts'
 import chalk from 'chalk'
 
-import { formatOutput, sanitize } from './utils'
+import { sanitize } from '../core/query'
+import { formatOutput } from './render'
 import { version } from './version'
-import { getResponseFromAi, DictionaryError } from './fetch'
-import { getHistory, clearCache } from './cache'
+import { lookupWord, DictionaryError } from '../core/lookup'
+import { getHistory, clearCache } from '../core/cache'
 import {
   loadConfig,
   saveConfig,
@@ -23,7 +24,13 @@ import {
   PROVIDERS,
   type Config,
   type Provider
-} from './config'
+} from '../core/config'
+import {
+  customLanguage,
+  findLanguage,
+  LANGUAGES,
+  type Language
+} from '../core/languages'
 
 updateSettings({ withGuide: false })
 
@@ -31,10 +38,10 @@ function showHelp(): void {
   const cmd = (s: string) => chalk.cyan(s.padEnd(16))
   note(
     [
-      `${cmd('ciba <word>')}  Look up an English word`,
+      `${cmd('ciba <word>')}  Look up a word`,
       `${cmd('ciba -l')}  Browse recent history`,
       '',
-      `${cmd('--config')}  Reconfigure provider, model, and API key`,
+      `${cmd('--config')}  Reconfigure languages, provider, model, and key`,
       `${cmd('--clear')}  Clear all history`,
       `${cmd('--version')}  Show version`,
       `${cmd('--help')}  Show this message`
@@ -43,9 +50,55 @@ function showHelp(): void {
   )
 }
 
+const OTHER_LANGUAGE = '__other__'
+
+/** Any language the model knows, whether or not this list happens to name it. */
+async function chooseLanguage(
+  message: string,
+  initialValue: string
+): Promise<Language> {
+  const choice = await select({
+    message,
+    initialValue,
+    options: [
+      ...LANGUAGES.map((language) => ({
+        value: language.code,
+        label: language.label
+      })),
+      { value: OTHER_LANGUAGE, label: chalk.dim('Other…') }
+    ]
+  })
+
+  if (isCancel(choice)) process.exit(0)
+
+  const listed = findLanguage(choice as string)
+  if (listed) return listed
+
+  // Loops rather than exits: a stray Return should not end the setup.
+  for (;;) {
+    const name = await text({
+      message: 'Language name, in English:',
+      placeholder: 'Swahili',
+      validate: (value) =>
+        value?.trim() ? undefined : 'A language needs a name.'
+    })
+
+    if (isCancel(name)) process.exit(0)
+
+    const custom = customLanguage(name)
+    if (custom) return custom
+  }
+}
+
 async function setupConfig(): Promise<void> {
   intro(chalk.bold.cyan('AICIBA') + chalk.dim('  AI Dictionary'))
   log.info('Setup — saved to ~/.aiciba/config.json')
+
+  const entryLanguage = await chooseLanguage('Look up words in:', 'en')
+  const definitionLanguage = await chooseLanguage(
+    'Write definitions in:',
+    entryLanguage.code === 'zh' ? 'en' : 'zh'
+  )
 
   const provider = await select({
     message: 'Choose a provider:',
@@ -76,23 +129,29 @@ async function setupConfig(): Promise<void> {
   const config: Config = {
     provider: provider as Provider,
     apiKey: apiKey.trim(),
-    model: model as string
+    model: model as string,
+    entryLanguage,
+    definitionLanguage
   }
 
   saveConfig(config)
-  log.success('Config saved.')
+  log.success(
+    `Saved — ${entryLanguage.name} words, ${definitionLanguage.name} definitions.`
+  )
 }
 
 async function lookupAndDisplay(word: string): Promise<void> {
   const s = spinner()
   s.start(`Looking up ${chalk.bold.cyan(word)}`)
-  const { output, fromCache } = await getResponseFromAi(word)
+  const { output, fromCache } = await lookupWord(word)
 
   s.clear()
 
   if (!output.exists) {
     if (output.suggestions.length === 0) {
-      log.error(`"${word}" is not a valid English word.`)
+      log.error(
+        `"${word}" is not a valid ${loadConfig()?.entryLanguage.name ?? 'English'} word.`
+      )
       return
     }
     const chosen = await select({
@@ -103,7 +162,7 @@ async function lookupAndDisplay(word: string): Promise<void> {
 
     const s2 = spinner()
     s2.start(`Looking up ${chalk.bold.cyan(chosen)}`)
-    const { output: corrected, fromCache: fc } = await getResponseFromAi(
+    const { output: corrected, fromCache: fc } = await lookupWord(
       chosen as string
     )
     s2.stop(

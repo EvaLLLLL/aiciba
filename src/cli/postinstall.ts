@@ -4,7 +4,7 @@ const chalk = new Chalk({ level: 3 })
 
 console.log('')
 console.log(
-  `  ${chalk.bold.cyan('AICIBA')} ${chalk.dim('— AI-powered English-Chinese dictionary')}`
+  `  ${chalk.bold.cyan('AICIBA')} ${chalk.dim('— an AI dictionary for any two languages')}`
 )
 console.log('')
 console.log(`  ${chalk.bold('Get started:')}`)
