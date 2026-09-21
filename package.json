@@ -10,6 +10,7 @@
     "build": "tsup",
     "build:workflow": "tsup && node scripts/build-workflow.mjs",
     "icon:workflow": "rsvg-convert -w 512 -h 512 -o workflow/icon.png workflow/icon.svg",
+    "assets": "rsvg-convert -w 2400 -o assets/banner.png assets/banner.svg && rsvg-convert -w 1800 -o assets/demo.png assets/demo.svg",
     "start": "node dist/main.js",
     "lint": "tsc --noEmit",
     "test": "tsx --test src/*/*.test.ts",
